@@ -88,6 +88,8 @@ std::vector<std::string> LoadNames(const std::string& path) {
 }
 
 
+
+
 void Demo(cv::Mat& img,
 	const std::vector<std::tuple<cv::Rect, float, int>>& data_vec,
 	const std::vector<std::string>& class_names,
@@ -213,6 +215,57 @@ gaussian* Delete_gaussian(gaussian* nptr)
 	}
 	return nptr;
 }
+
+bool judgeInorNot(std::vector<cv::Point2d>& pt, const std::vector<cv::Point2d>& polygons)
+{
+	if (pt.size() < 4)
+	{
+		printf("input rect failure!!<<<<<<");
+		return false;
+	}
+	int numofNonintersection = 0;
+
+	for (int j = 0; j < pt.size(); j++)
+	{
+		int nCross = 0;    // 定义变量，统计目标点向右画射线与多边形相交次数
+		for (int i = 0; i < polygons.size(); i++)
+		{   //遍历多边形每一个节点
+
+			cv::Point2d p1;
+			cv::Point2d p2;
+
+			p1 = polygons[i];
+			p2 = polygons[(i + 1) % polygons.size()];  // p1是这个节点，p2是下一个节点，两点连线是多边形的一条边
+	// 以下算法是用是先以y轴坐标来判断的
+
+			if (p1.y == p2.y)
+				continue;   //如果这条边是水平的，跳过
+
+
+			if (pt[j].y < min(p1.y, p2.y)) //如果目标点低于这个线段，跳过
+				continue;
+
+			if (pt[j].y >= max(p1.y, p2.y)) //如果目标点高于这个线段，跳过
+				continue;
+			//那么下面的情况就是：如果过p1画水平线，过p2画水平线，目标点在这两条线中间
+			double x = (double)(pt[j].y - p1.y) * (double)(p2.x - p1.x) / (double)(p2.y - p1.y) + p1.x;
+			// 这段的几何意义是 过目标点，画一条水平线，x是这条线与多边形当前边的交点x坐标
+			if (x > pt[j].x)
+				nCross++; //如果交点在右边，统计加一。这等于从目标点向右发一条射线（ray），与多边形各边的相交（crossing）次数
+		}
+
+		if (nCross % 2 == 1) {
+
+			return true; //如果是奇数，说明在多边形里
+		}
+		else {
+			//numofNonintersection++;
+			//return false; //否则在多边形外 或 边上
+		}
+	}
+	return false;
+}
+
 
 //CheckMode: 0����ȥ��������1����ȥ��������; NeihborMode��0����4����1����8����;  
 void RemoveSmallRegion(Mat& Src, Mat& Dst, int AreaLimit, int CheckMode, int NeihborMode)
@@ -554,11 +607,40 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	capture.read(orig_img);
 	//orig_img = cv::imread("../data/back1.jpg");
 	cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
-	cv::cvtColor(orig_img, orig_img, cv::COLOR_BGR2YCrCb);
-	//cv::GaussianBlur(orig_img, orig_img, cv::Size(3,3), 3.0);
+
+	// 试着修改选取感兴趣区域
+	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>> Hits <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>please Rectangle the ROI area to run obj detection!!!<<<<<<<<<<<\n");
+	printf(">>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>><<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<\n");
+
+	cv::Rect2d roi = cv::selectROI(orig_img);
+	// prepare for judgeinornot 
+	std::vector<Point2d> regions;
+	Point2d p1(roi.x, roi.y);
+	Point2d p2(roi.x + roi.width, roi.y);
+	Point2d p3(roi.x + roi.width, roi.y + roi.height);
+	Point2d p4(roi.x, roi.y + roi.height);
+	regions.push_back(p1);
+	regions.push_back(p2);
+	regions.push_back(p3);
+	regions.push_back(p4);
+
+
+
+	//printf("you have select roi:x,y,width,height[%f,%f,%f,%f]\n", roi.x, roi.y, roi.width, roi.height);
+	cv::Mat roiregion = orig_img(roi);
+
+
+	cv::cvtColor(roiregion, roiregion, cv::COLOR_BGR2YCrCb);
+	
+	//cv::GaussianBlur(roiregion, roiregion, cv::Size(3,3), 3.0);
 
 	//Initializing the binary image with the same dimensions as original image
-	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8U, cv::Scalar(0));
+	bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
 
 	double value[3];
 	
@@ -567,10 +649,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 	cv::Vec3f val;
 	uchar* r_ptr;
 	uchar* b_ptr;
-	for (i = 0; i < orig_img.rows; i++)
+	for (i = 0; i < roiregion.rows; i++)
 	{
-		r_ptr = orig_img.ptr(i);
-		for (j = 0; j < orig_img.cols; j++)
+		r_ptr = roiregion.ptr(i);
+		for (j = 0; j < roiregion.cols; j++)
 		{
 
 			N_ptr = Create_Node(*r_ptr, *(r_ptr + 1), *(r_ptr + 2));
@@ -591,16 +673,16 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 	int nL, nC;
 
-	if (orig_img.isContinuous() == true)
+	if (roiregion.isContinuous() == true)
 	{
 		nL = 1;
-		nC = orig_img.rows * orig_img.cols * orig_img.channels();
+		nC = roiregion.rows * roiregion.cols * roiregion.channels();
 	}
 
 	else
 	{
-		nL = orig_img.rows;
-		nC = orig_img.cols * orig_img.channels();
+		nL = roiregion.rows;
+		nC = roiregion.cols * roiregion.channels();
 	}
 
 	double del[3], mal_dist;
@@ -618,10 +700,10 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 	//Step 2: Modelling each pixel with Gaussian
 	duration1 = static_cast<double>(cv::getTickCount());
-	bin_img = cv::Mat(orig_img.rows, orig_img.cols, CV_8UC1, cv::Scalar(0));
+	bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
 	
 	unsigned int count4tracker = 0;
-
+	unsigned int openvxframe = 0;
 
 	// ��֡�ʵ�̽����
 	std::vector< std::vector<BoundingBox>> vv_detections;
@@ -673,14 +755,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 
 
 		bool ret = capture.grab();
-		capture >> orig_img;
-		if (orig_img.empty())
+		capture >> roiregion;
+		if (roiregion.empty())
 		{
 			continue;
 		}
 		else
 		{
-			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+			cv::resize(roiregion, roiregion, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
 		}
 
 #else
@@ -690,6 +772,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		else
 		{
 			cv::resize(orig_img, orig_img, cv::Size(RESIZE_WIDTH, RESIZE_HEIGHT), INTER_NEAREST);
+			roiregion = orig_img(roi);
 		}
 #endif
 
@@ -698,14 +781,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		int count1 = 0;
 		iou_tracks.clear();
 
-		orig_img.copyTo(drawingorig);
+		roiregion.copyTo(drawingorig);
 
 
 		N_ptr = N_start;
 		duration = static_cast<double>(cv::getTickCount());
 		for (i = 0; i < nL; i++)
 		{
-			r_ptr = orig_img.ptr(i);
+			r_ptr = roiregion.ptr(i);
 			// ��ֵ����ͼ��ÿ�����ص�ĵ�ַָ��
 			b_ptr = bin_img.ptr(i);
 
@@ -872,316 +955,331 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 		waitKey(5);
 
 
-		// xuewei add some Morphology relevant processing
+		if (openvxframe > 20)
+		{
+			// xuewei add some Morphology relevant processing
+			cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
+			cv::morphologyEx(bin_img, bin_img, CV_MOP_CLOSE, kernel);
+			std::vector<std::vector<cv::Point>> contours;
+			std::vector<cv::Vec4i> hierarcy;
+			cv::bitwise_not(bin_img, bin_img);
+			cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
+			cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
+			cv::namedWindow("after xingtai", WINDOW_NORMAL);
+			imshow("after xingtai", bin_img);
+			waitKey(5);
 	
-		//step one, filter tiny points
-		//RemoveSmallRegion(bin_img, bin_img, 20, 0, 0);	
-		
-		// ��Ч��֤��ֵ�˲��ͱղ����Լ۱���ߣ�ҲЧ���Ϻá�
-		// ��ֵ�˲�
-		//cv::medianBlur(bin_img, bin_img, 3);
-
-		// �ղ�����
-		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
-		cv::morphologyEx(bin_img, bin_img, CV_MOP_CLOSE, kernel);
-
-		
-		
-
-		// �������
-		std::vector<std::vector<cv::Point>> contours;
-		std::vector<cv::Vec4i> hierarcy;
-		
-		// ȡ��ɫ����������һ���ҵ�������
-		cv::bitwise_not(bin_img, bin_img);
+			cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+			std::vector<RotatedRect> box(contours.size());
+			std::vector<Rect> boundRect(contours.size());
+			Point2f m_rect[4];
+			BoundingBox m_BBtemp;
+			memset(&m_BBtemp, 0, sizeof(BoundingBox));
 
 
-		// �ٲ���һ�����Ͳ����������ڵĿյ���ͨ����,��Ҫ�㷴�ˣ����;��Ƕ�ͼ��ĸ������ֽ������͡�
-		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(7, 7));
-		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
+			std::vector<BoundingBox> yolov5_currentobj;
 
-		cv::namedWindow("after xingtai", WINDOW_NORMAL);
-		imshow("after xingtai", bin_img);
-		waitKey(5);
-
-		cv::findContours(bin_img, contours, hierarcy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
-		std::vector<RotatedRect> box(contours.size());
-		std::vector<Rect> boundRect(contours.size());
-
-
-		Point2f m_rect[4];
-
-		
-		BoundingBox m_BBtemp;
-		memset(&m_BBtemp, 0, sizeof(BoundingBox));
-		
-
-		std::vector<BoundingBox> yolov5_currentobj;
-		
 #if yolov5
-		// �ȸ�һ�������������
-		auto result = detector.Run(orig_img, conf_thres, iou_thres);
+			// �ȸ�һ�������������
+			auto result = detector.Run(roiregion, conf_thres, iou_thres);
 
 
-		// ��yolov5�Ľ��д��txt
-		bool ret = write2file(outfile, count4tracker, result);
-		if (1) {
-			Demo(orig_img, result, class_names,false);
-		}
+			// ��yolov5�Ľ��д��txt
+			bool ret = write2file(outfile, count4tracker, result);
+			if (1) {
+				Demo(roiregion, result, class_names, false);
+			}
 #else
-	#if RTSP		
-	BoundingBox tempbb;
-	for(int i=0; i<inferData.v_inferout.size();i++ )
-	{
-		tempbb.x = static_cast<float>(inferData.v_inferout[i].x);
-		tempbb.y = static_cast<float>(inferData.v_inferout[i].y);
-		tempbb.width = static_cast<float>(inferData.v_inferout[i].width);
-		tempbb.height = static_cast<float>(inferData.v_inferout[i].height);
-		tempbb.score = 1;
-		tempbb.m_status = UnkownObj;
-		yolov5_currentobj.push_back(tempbb);
+#if RTSP		
+			BoundingBox tempbb;
+			for (int i = 0; i < inferData.v_inferout.size(); i++)
+			{
+				tempbb.x = static_cast<float>(inferData.v_inferout[i].x);
+				tempbb.y = static_cast<float>(inferData.v_inferout[i].y);
+				tempbb.width = static_cast<float>(inferData.v_inferout[i].width);
+				tempbb.height = static_cast<float>(inferData.v_inferout[i].height);
+				tempbb.score = 1;
+				tempbb.m_status = UnkownObj;
+				yolov5_currentobj.push_back(tempbb);
 
-	}
-	SplitObjIF::SplitIF::Instance().Setinnerframecount(count4tracker);
-	#else
-		
-		if (count4tracker< yolov5_detections.size())
-		{
-			yolov5_currentobj = yolov5_detections[count4tracker];
-		}
-		else
-		{
-			printf("it is not possible!, and yolov5 detections frames are less than videos!");
-			return ;
-		}
-	
-	#endif // RTSP
+			}
+			SplitObjIF::SplitIF::Instance().Setinnerframecount(count4tracker);
+#else
+
+			if (count4tracker < yolov5_detections.size())
+			{
+				yolov5_currentobj = yolov5_detections[count4tracker];
+			}
+			else
+			{
+				printf("it is not possible!, and yolov5 detections frames are less than videos!");
+				return;
+			}
+
+#endif // RTSP
 
 
-		
+
 #endif
 
-		//  ��ȡ��ǰ���������̽����
-		std::vector<BoundingBox>::iterator iters_b = yolov5_currentobj.begin();
-		std::vector<BoundingBox>::iterator iter_e = yolov5_currentobj.end();
-		std::cout << "begin to draw yolov5 detections'results!!" << std::endl;
-		for (; iters_b != iter_e; iters_b++)
-		{
-			rectangle(drawingorig,
-				Point((int)iters_b->x,
-					(int)iters_b->y),
-				Point((int)iters_b->x + (int)iters_b->width,
-					(int)iters_b->y + (int)iters_b->height),
-				Scalar(0, 0, 255),
-				2,
-				8);
-		}
-		
-		// �������ƶ�������
-		for (int i=0; i < contours.size();i++)
-		{
-			box[i] = minAreaRect(Mat(contours[i]));
-			boundRect[i] = cv::boundingRect(Mat(contours[i]));
-			if (box[i].size.width < 15*RESIZE_WIDTH/960 || box[i].size.height<15*RESIZE_WIDTH/960)
-			{
-				continue;
-			}
-			else
-			{
-				//rectangle(drawingorig, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
-				/*	m_BBtemp.x = boundRect[i].x;
-					m_BBtemp.y = boundRect[i].y;
-					m_BBtemp.w = boundRect[i].width;
-					m_BBtemp.h = boundRect[i].height;
-					m_BBtemp.score = 1;
-					m_BBtemp.m_status = UnkownObj;
-					v_bbnd.push_back(m_BBtemp);*/
-				//circle(orig_img, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);
-				box[i].points(m_rect);
-
-				m_BBtemp.x = m_rect[0].x;
-				m_BBtemp.y = m_rect[0].y;
-				m_BBtemp.width = m_rect[1].x - m_rect[0].x;
-				m_BBtemp.height = m_rect[2].y - m_rect[1].y;
-				m_BBtemp.score = 1;
-				m_BBtemp.m_status = UnkownObj;
-				v_bbnd.push_back(m_BBtemp);
+			//  ��ȡ��ǰ���������̽����
+			std::vector<Point2d> yolov5Points;
 			
-				// keep ��С��Ӿ���
-				for (int j = 0; j < 4; j++)
+			std::cout << "begin to draw yolov5 detections'results!!" << std::endl;
+			for (std::vector<BoundingBox>::iterator iters_b = yolov5_currentobj.begin();iters_b< yolov5_currentobj.end();)
+			{
+				yolov5Points.clear();
+				cv::Point topleft, topright, bottomleft, bottomright;
+				topleft.x = (int)iters_b->x;
+				topleft.y = (int)iters_b->y;
+				topright.x = (int)iters_b->x + (int)iters_b->width;
+				topright.y = (int)iters_b->y;
+				bottomleft.x = (int)iters_b->x;
+				bottomleft.y = (int)iters_b->y + (int)iters_b->height;
+				bottomright.x = (int)iters_b->x + (int)iters_b->width;
+				bottomright.y = (int)iters_b->y + (int)iters_b->height;
+				yolov5Points.push_back(topleft);
+				yolov5Points.push_back(topright);
+				yolov5Points.push_back(bottomright);
+				yolov5Points.push_back(bottomleft);
+
+				bool insideornot = judgeInorNot(yolov5Points, regions);
+				if (insideornot)
 				{
-					//line(orig_img, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
+					iters_b->x = iters_b->x - roi.x;
+					iters_b->y = iters_b->y - roi.y;
+					
+					rectangle(drawingorig,
+						Point((int)iters_b->x-roi.x,
+							(int)iters_b->y-roi.y),
+						Point((int)iters_b->x + (int)iters_b->width-roi.x,
+							(int)iters_b->y + (int)iters_b->height-roi.y),
+						Scalar(0, 0, 255),
+						2,
+						8);
+					iters_b++;
+				}
+				else
+				{
+					iters_b = yolov5_currentobj.erase(iters_b);
 				}
 			}
-		}
 
-		// ��һ��Yolo�ͱ������ϲ�filter
-		// step one ,��ƥ������˶�Ŀ����yolo��̽��
-
-		char yichu[255];
-		for (int i =0; i<v_bbnd.size();i++)
-		{
-			int indexofmatch = highestIOU(v_bbnd[i], yolov5_currentobj);
-			// �ж��Ƿ��˶�������yolov5 ���ճ��������ǣ��򲻼�������׷��iou
-			if (indexofmatch != -1 \
-				&& intersectionOverUnion(v_bbnd[i], yolov5_currentobj[indexofmatch]) >= 0.05)
+			printf("contours'size:%d \n", contours.size());
+			for (int i = 0; i < contours.size(); i++)
 			{
-				v_bbnd[i].m_status = Ejected;
-				rectangle(drawingorig,
-					Point(v_bbnd[i].x, v_bbnd[i].y),
-					Point(v_bbnd[i].x + v_bbnd[i].width,
-						v_bbnd[i].y + v_bbnd[i].height),
-					Scalar(0, 150, 50), 2, 8);
-
-				sprintf(yichu, "Ejected");
-
-				cv::putText(drawingorig, yichu,
-					cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
-						v_bbnd[i].y + v_bbnd[i].height + 10),
-					1,
-					1.2,
-					Scalar(0, 150, 50),
-					1.2, LINE_4);
-
-				v_bbnd.erase(v_bbnd.begin() + i);
-			}
-			else
-			{
-				v_bbnd[i].m_status = Suspected;
-				rectangle(drawingorig,
-					Point(v_bbnd[i].x, v_bbnd[i].y),
-					Point(v_bbnd[i].x + v_bbnd[i].width,
-						v_bbnd[i].y + v_bbnd[i].height),
-					Scalar(0, 150, 50), 2, 8);
-
-				sprintf(yichu, "Split_Unsure");
-
-				cv::putText(drawingorig, yichu,
-					cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
-						v_bbnd[i].y + v_bbnd[i].height + 10),
-					1,
-					1.2,
-					Scalar(150, 0, 50),
-					1.2, LINE_4);
-			}
-		}
-		// ÿ֡ѭ������v_bbnd���뵽Ƕ��vv�У�
-		vv_detections.push_back(v_bbnd);
-
-		// �����ۼ�����ѭ����ʼ iou track
-
-		if (count4tracker>3)
-		{
-			//begin to iou track
-			iou_tracks = track_iou(stationary_threshold, lazy_threshold,sigma_h, sigma_iou, t_min, vv_detections);
-			std::cout << "tracks'size" << iou_tracks.size() << std::endl;
-			//std::cout << "Last Track ID > " << iou_tracks.back().id << std::endl;
-		}
-		std::cout << "this is" << count4tracker << "frame" << std::endl;
-
-		
-
-		char info[256];
-		for (auto &dt : iou_tracks)
-		{
-			int box_index = count4tracker - dt.start_frame;
-			if (box_index < dt.boxes.size())
-			{
-				BoundingBox b = dt.boxes[box_index];
-				
-				cv::rectangle(drawingorig, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), cv::Scalar(255, 0, 100), 2);
-
-				std::string s_status;
-				cv::Scalar blue(255, 0, 0);
-				cv::Scalar red(0, 0, 255);
-				cv::Scalar green(0, 255, 0);
-				switch (dt.status)
+				box[i] = minAreaRect(Mat(contours[i]));
+				boundRect[i] = cv::boundingRect(Mat(contours[i]));
+				if (box[i].size.width < 15 * RESIZE_WIDTH / 960 || box[i].size.height < 15 * RESIZE_WIDTH / 960)
 				{
-				case Moving:
-					s_status = "Moving";
-					sprintf(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					//cv::putText(drawingorig, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, blue, 1);
-					break;
-				case Stopping:
-					s_status = "Stopping";
-					sprintf(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
-					//cv::putText(drawingorig, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
-					break;
-				case Static_Sure:
+					continue;
+				}
+				else
+				{
+					//rectangle(drawingorig, Point(boundRect[i].x, boundRect[i].y), Point(boundRect[i].x + boundRect[i].width, boundRect[i].y + boundRect[i].height), Scalar(0, 255, 0), 2, 8);
+					/*	m_BBtemp.x = boundRect[i].x;
+						m_BBtemp.y = boundRect[i].y;
+						m_BBtemp.w = boundRect[i].width;
+						m_BBtemp.h = boundRect[i].height;
+						m_BBtemp.score = 1;
+						m_BBtemp.m_status = UnkownObj;
+						v_bbnd.push_back(m_BBtemp);*/
+						//circle(roiregion, Point(box[i].center.x, box[i].center.y), 5, Scalar(0, 255, 0), -1, 8);
+					box[i].points(m_rect);
 
-					if (b.width * b.height > pow(RESIZE_WIDTH*200/960,2))
+					m_BBtemp.x = m_rect[0].x;
+					m_BBtemp.y = m_rect[0].y;
+					m_BBtemp.width = m_rect[1].x - m_rect[0].x;
+					m_BBtemp.height = m_rect[2].y - m_rect[1].y;
+					m_BBtemp.score = 1;
+					m_BBtemp.m_status = UnkownObj;
+					v_bbnd.push_back(m_BBtemp);
+
+					// keep ��С��Ӿ���
+					for (int j = 0; j < 4; j++)
 					{
-						break;
+						//line(roiregion, m_rect[j], m_rect[(j + 1) % 4], Scalar(0, 255, 0), 2, 8);
 					}
+				}
+			}
 
-					s_status = "SplitObj_Sure";
-					sprintf(info, "ID:%d_%s", dt.id,  s_status.c_str());
-					cv::putText(drawingorig, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1.5, red, 1);
-					
-					xueweiImage::SplitObject tmpSplitObj;
-					tmpSplitObj.ID = splitID;
-					tmpSplitObj.m_postion.x = static_cast<int>(b.x);
-					tmpSplitObj.m_postion.y = static_cast<int>(b.y);
-					tmpSplitObj.m_postion.width = static_cast<int>(b.width);
-					tmpSplitObj.m_postion.height = static_cast<int>(b.height);
-					tmpSplitObj.moved = false;
-					tmpSplitObj.firstshowframenum = count4tracker;
-					tmpSplitObj.imgdata = orig_img(tmpSplitObj.m_postion);
-					tmpSplitObj.haschecked = false;
-					tmpSplitObj.checktimes = 1;
+			// ��һ��Yolo�ͱ������ϲ�filter
+			// step one ,��ƥ������˶�Ŀ����yolo��̽��
 
-					#if RTSP
-					// copy a result to senderpin
-					SenderResults.m_gps.latititude = 0;
-					SenderResults.m_gps.longtitude = 0;
-					SenderResults.m_radarpos.x = 0.0f;
-					SenderResults.m_radarpos.y = 0.0f;
-					SenderResults.SplitID = splitID;
-					// this timestamp is when the object
-					SenderResults.appearing_timestamp = inferData.timestamp;
-					SenderResults.m_postion.x = static_cast<int>(b.x);
-					SenderResults.m_postion.y = static_cast<int>(b.y);
-					SenderResults.m_postion.width = static_cast<int>(b.width);
-					SenderResults.m_postion.height = static_cast<int>(b.height);
-					SenderResults.moved = false;
-					SenderResults.firstshowframenum = count4tracker;
-					SenderResults.imgdata = orig_img(tmpSplitObj.m_postion);
-					SenderResults.haschecked = false;
-					SenderResults.checktimes = 1;	
-					#endif
-					char display[256];
-					#if RTSP
-					if (!senderpin.empty())
+			char yichu[255];
+			for (int i = 0; i < v_bbnd.size(); i++)
+			{
+				int indexofmatch = highestIOU(v_bbnd[i], yolov5_currentobj);
+				// �ж��Ƿ��˶�������yolov5 ���ճ��������ǣ��򲻼�������׷��iou
+				if (indexofmatch != -1 \
+					&& intersectionOverUnion(v_bbnd[i], yolov5_currentobj[indexofmatch]) >= 0.05)
+				{
+					v_bbnd[i].m_status = Ejected;
+					rectangle(drawingorig,
+						Point(v_bbnd[i].x, v_bbnd[i].y),
+						Point(v_bbnd[i].x + v_bbnd[i].width,
+							v_bbnd[i].y + v_bbnd[i].height),
+						Scalar(0, 150, 50), 2, 8);
+
+					sprintf(yichu, "Ejected");
+
+					cv::putText(drawingorig, yichu,
+						cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
+							v_bbnd[i].y + v_bbnd[i].height + 10),
+						1,
+						1.2,
+						Scalar(0, 150, 50),
+						1.2, LINE_4);
+
+					v_bbnd.erase(v_bbnd.begin() + i);
+				}
+				else
+				{
+					v_bbnd[i].m_status = Suspected;
+					rectangle(drawingorig,
+						Point(v_bbnd[i].x, v_bbnd[i].y),
+						Point(v_bbnd[i].x + v_bbnd[i].width,
+							v_bbnd[i].y + v_bbnd[i].height),
+						Scalar(0, 150, 50), 2, 8);
+
+					sprintf(yichu, "Split_Unsure");
+
+					cv::putText(drawingorig, yichu,
+						cv::Point((v_bbnd[i].x + v_bbnd[i].width - v_bbnd[i].width / 2) - 30,
+							v_bbnd[i].y + v_bbnd[i].height + 10),
+						1,
+						1.2,
+						Scalar(150, 0, 50),
+						1.2, LINE_4);
+				}
+			}
+			// ÿ֡ѭ������v_bbnd���뵽Ƕ��vv�У�
+			vv_detections.push_back(v_bbnd);
+
+			// �����ۼ�����ѭ����ʼ iou track
+
+			if (count4tracker > 10)
+			{
+				//begin to iou track
+				iou_tracks = track_iou(stationary_threshold, lazy_threshold, sigma_h, sigma_iou, t_min, vv_detections);
+				std::cout << "tracks'size" << iou_tracks.size() << std::endl;
+				//std::cout << "Last Track ID > " << iou_tracks.back().id << std::endl;
+			}
+			std::cout << "this is" << count4tracker << "frame" << std::endl;
+
+
+
+			char info[256];
+			for (auto& dt : iou_tracks)
+			{
+				int box_index = count4tracker - dt.start_frame;
+				if (box_index < dt.boxes.size())
+				{
+					BoundingBox b = dt.boxes[box_index];
+
+					cv::rectangle(drawingorig, cv::Point(b.x, b.y), cv::Point(b.x + b.width, b.y + b.height), cv::Scalar(255, 0, 100), 2);
+
+					std::string s_status;
+					cv::Scalar blue(255, 0, 0);
+					cv::Scalar red(0, 0, 255);
+					cv::Scalar green(0, 255, 0);
+					switch (dt.status)
 					{
-						// �����������ж��Ƿ����µ����������
-						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
-						if (index != -1 \
-							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
+					case Moving:
+						s_status = "Moving";
+						sprintf(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
+						//cv::putText(drawingorig, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, blue, 1);
+						break;
+					case Stopping:
+						s_status = "Stopping";
+						sprintf(info, "ID:%d_AppearingT:%d_%s", dt.id, dt.total_appearing, s_status.c_str());
+						//cv::putText(drawingorig, info, cv::Point((b.x + b.w - b.w / 2) - 30, b.y + b.h - 5), 1, 1, green, 1);
+						break;
+					case Static_Sure:
+
+						if (b.width * b.height > pow(RESIZE_WIDTH * 200 / 960, 2))
 						{
-								
+							break;
+						}
+
+						s_status = "SplitObj_Sure";
+						sprintf(info, "ID:%d_%s", dt.id, s_status.c_str());
+						cv::putText(drawingorig, info, cv::Point((b.x + b.width - b.width / 2) - 30, b.y + b.height - 5), 1, 1.5, red, 1);
+
+						xueweiImage::SplitObject tmpSplitObj;
+						tmpSplitObj.ID = splitID;
+						tmpSplitObj.m_postion.x = static_cast<int>(b.x);
+						tmpSplitObj.m_postion.y = static_cast<int>(b.y);
+						tmpSplitObj.m_postion.width = static_cast<int>(b.width);
+						tmpSplitObj.m_postion.height = static_cast<int>(b.height);
+						tmpSplitObj.moved = false;
+						tmpSplitObj.firstshowframenum = count4tracker;
+						tmpSplitObj.imgdata = roiregion(tmpSplitObj.m_postion);
+						tmpSplitObj.haschecked = false;
+						tmpSplitObj.checktimes = 1;
+
+#if RTSP
+						// copy a result to senderpin
+						SenderResults.m_gps.latititude = 0;
+						SenderResults.m_gps.longtitude = 0;
+						SenderResults.m_radarpos.x = 0.0f;
+						SenderResults.m_radarpos.y = 0.0f;
+						SenderResults.SplitID = splitID;
+						// this timestamp is when the object
+						SenderResults.appearing_timestamp = inferData.timestamp;
+						SenderResults.m_postion.x = static_cast<int>(b.x);
+						SenderResults.m_postion.y = static_cast<int>(b.y);
+						SenderResults.m_postion.width = static_cast<int>(b.width);
+						SenderResults.m_postion.height = static_cast<int>(b.height);
+						SenderResults.moved = false;
+						SenderResults.firstshowframenum = count4tracker;
+						SenderResults.imgdata = roiregion(tmpSplitObj.m_postion);
+						SenderResults.haschecked = false;
+						SenderResults.checktimes = 1;
+#endif
+						char display[256];
+#if RTSP
+						if (!senderpin.empty())
+						{
+							// �����������ж��Ƿ����µ����������
+							int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
+							if (index != -1 \
+								&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
+							{
+
+							}
+							else
+							{
+								senderpin.push_back(SenderResults);
+								splitID++;
+							}
+
 						}
 						else
 						{
 							senderpin.push_back(SenderResults);
 							splitID++;
 						}
-						
-					}
-					else
-					{
-						senderpin.push_back(SenderResults);
-						splitID++;
-					}
 
-					#else
-					if (!SplitObjForSure.empty())
-					{
-						// �����������ж��Ƿ����µ����������
-						int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
-						if (index != -1 \
-							&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
+#else
+						if (!SplitObjForSure.empty())
 						{
-								
+							// �����������ж��Ƿ����µ����������
+							int index = Analysis.CheckHighestIOU(tmpSplitObj.m_postion, SplitObjForSure);
+							if (index != -1 \
+								&& Analysis.intersectionOU(tmpSplitObj.m_postion, SplitObjForSure[index].m_postion) >= 0.75)
+							{
+
+							}
+							else
+							{
+#if RTSP
+								senderpin.push_back(SenderResults);
+#endif
+								SplitObjForSure.push_back(tmpSplitObj);
+								splitID++;
+							}
+
 						}
 						else
 						{
@@ -1191,192 +1289,188 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin)
 							SplitObjForSure.push_back(tmpSplitObj);
 							splitID++;
 						}
-						
+#endif
+						break;
+					}
+				}
+			}
+
+
+
+			char displayindex[256], judge[256];
+			int offset = 1;
+			// for  destroy corresponding patch 
+			char destroypatchname[256];
+
+
+#if RTSP
+
+			for (vector<SplitObjIF::SplitObjSender>::iterator iter = senderpin.begin(); iter < senderpin.end();)
+			{
+				int timeinterval = count4tracker - iter->firstshowframenum;
+				if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
+				{
+					/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
+					// 
+					cv::Mat currentpatchhere = roiregion(iter->m_postion);
+					bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+					iter->haschecked = true;
+					iter->checktimes++;
+					if (movedout)
+					{
+						sprintf(judge, "obj[%d] has been moved out \n", iter->ID);
+						cv::putText(drawingorig, judge, cv::Point(200, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+						offset++;
+						sprintf(destroypatchname, "patch_%d", iter->ID);
+						cv::destroyAllWindows();
+						iter = senderpin.erase(iter);
 					}
 					else
 					{
-#if RTSP
-						senderpin.push_back(SenderResults);
-#endif
-						SplitObjForSure.push_back(tmpSplitObj);
-						splitID++;
+						sprintf(judge, "obj[%d] is still there, check first times \n", iter->ID);
+						cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+						offset++;
+						iter->moved = false;
+						iter++;
 					}
-					#endif
-					break;
 				}
-			}
-		}
-
-
-
-		char displayindex[256],judge[256];
-		int offset = 1; 
-		// for  destroy corresponding patch 
-		char destroypatchname[256];
-
-
-		#if RTSP
-
-		for (vector<SplitObjIF::SplitObjSender>::iterator iter = senderpin.begin(); iter < senderpin.end();)
-		{
-			int timeinterval = count4tracker - iter->firstshowframenum;
-			if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
-			{
-				/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
-				// 
-				cv::Mat currentpatchhere = orig_img(iter->m_postion);
-				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
-				iter->haschecked = true;
-				iter->checktimes++;
-				if (movedout)
+				else if (iter->haschecked && timeinterval > (CHECK_INTERVAL * iter->checktimes))
 				{
-					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
-					cv::putText(drawingorig, judge, cv::Point(200, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
-					offset++;
-					sprintf(destroypatchname, "patch_%d", iter->ID);
-					cv::destroyAllWindows();
-					iter = senderpin.erase(iter);
-				}
-				else
-				{
-					sprintf(judge, "obj[%d] is still there, check first times \n", iter->ID);
-					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
-					offset++;
-					iter->moved = false;
-					iter++;
-				}
-			}
-			else if (iter->haschecked && timeinterval>(CHECK_INTERVAL*iter->checktimes))
-			{
-				cv::Mat currentpatchhere = orig_img(iter->m_postion);
-				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
-				iter->checktimes++;
-				if (movedout)
-				{
-					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
-					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
-					offset++;
-					sprintf(destroypatchname, "patch_%d", iter->ID);
-					cv::destroyAllWindows();
-					iter = senderpin.erase(iter);
-				}
-				else
-				{
-					sprintf(judge, "obj[%d] is still there, check[%d] times \n", iter->ID,iter->checktimes);
-					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
-					iter->moved = false;
-					iter++;
-				}
-			}
-			else
-			{
-				if (CHECK_INTERVAL>timeinterval)
-				{
-					sprintf(judge, "ID_%d_%d_fleft",iter->ID, CHECK_INTERVAL - timeinterval);
-				}
-				else
-				{
-					if (!iter->haschecked)
+					cv::Mat currentpatchhere = roiregion(iter->m_postion);
+					bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+					iter->checktimes++;
+					if (movedout)
 					{
-						sprintf(judge, "ID_%d to check now", iter->ID);
+						sprintf(judge, "obj[%d] has been moved out \n", iter->ID);
+						cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+						offset++;
+						sprintf(destroypatchname, "patch_%d", iter->ID);
+						cv::destroyAllWindows();
+						iter = senderpin.erase(iter);
+					}
+					else
+					{
+						sprintf(judge, "obj[%d] is still there, check[%d] times \n", iter->ID, iter->checktimes);
+						cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+						iter->moved = false;
+						iter++;
 					}
 				}
-				cv::putText(drawingorig,judge,cv::Point(8,5+(100*offset)),3,1.25,cv::Scalar(0,0,255));
-				offset++;
-				sprintf(displayindex, "patch_%d ", iter->ID);
-				cv::namedWindow(displayindex, WINDOW_NORMAL);
-				cv::imshow(displayindex, iter->imgdata);
-				cv::waitKey(5);
-				iter++;
+				else
+				{
+					if (CHECK_INTERVAL > timeinterval)
+					{
+						sprintf(judge, "ID_%d_%d_fleft", iter->ID, CHECK_INTERVAL - timeinterval);
+					}
+					else
+					{
+						if (!iter->haschecked)
+						{
+							sprintf(judge, "ID_%d to check now", iter->ID);
+						}
+					}
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+					offset++;
+					sprintf(displayindex, "patch_%d ", iter->ID);
+					cv::namedWindow(displayindex, WINDOW_NORMAL);
+					cv::imshow(displayindex, iter->imgdata);
+					cv::waitKey(5);
+					iter++;
+				}
 			}
-		}
 
-		#else
+#else
 			for (vector <xueweiImage::SplitObject>::iterator iter = SplitObjForSure.begin(); iter < SplitObjForSure.end();)
-		{
-			int timeinterval = count4tracker - iter->firstshowframenum;
-			if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
 			{
-				/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
-				// 
-				cv::Mat currentpatchhere = orig_img(iter->m_postion);
-				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
-				iter->haschecked = true;
-				iter->checktimes++;
-				if (movedout)
+				int timeinterval = count4tracker - iter->firstshowframenum;
+				if (timeinterval > CHECK_INTERVAL && !iter->haschecked)
 				{
-					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
-					cv::putText(drawingorig, judge, cv::Point(200, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
-					offset++;
-					sprintf(destroypatchname, "patch_%d", iter->ID);
-					cv::destroyAllWindows();
-					iter = SplitObjForSure.erase(iter);
-				}
-				else
-				{
-					sprintf(judge, "obj[%d] is still there, check first times \n", iter->ID);
-					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
-					offset++;
-					iter->moved = false;
-					iter++;
-				}
-			}
-			else if (iter->haschecked && timeinterval>(CHECK_INTERVAL*iter->checktimes))
-			{
-				cv::Mat currentpatchhere = orig_img(iter->m_postion);
-				bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
-				iter->checktimes++;
-				if (movedout)
-				{
-					sprintf(judge,"obj[%d] has been moved out \n", iter->ID);
-					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
-					offset++;
-					sprintf(destroypatchname, "patch_%d", iter->ID);
-					cv::destroyAllWindows();
-					iter = SplitObjForSure.erase(iter);
-				}
-				else
-				{
-					sprintf(judge, "obj[%d] is still there, check[%d] times \n", iter->ID,iter->checktimes);
-					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
-					iter->moved = false;
-					iter++;
-				}
-			}
-			else
-			{
-				if (CHECK_INTERVAL>timeinterval)
-				{
-					sprintf(judge, "ID_%d_%d_fleft",iter->ID, CHECK_INTERVAL - timeinterval);
-				}
-				else
-				{
-					if (!iter->haschecked)
+					/*sprintf(judge,"judge whether the obj[%d] is moved out \n", iter->ID);*/
+					// 
+					cv::Mat currentpatchhere = roiregion(iter->m_postion);
+					bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+					iter->haschecked = true;
+					iter->checktimes++;
+					if (movedout)
 					{
-						sprintf(judge, "ID_%d to check now", iter->ID);
+						sprintf(judge, "obj[%d] has been moved out \n", iter->ID);
+						cv::putText(drawingorig, judge, cv::Point(200, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+						offset++;
+						sprintf(destroypatchname, "patch_%d", iter->ID);
+						cv::destroyAllWindows();
+						iter = SplitObjForSure.erase(iter);
+					}
+					else
+					{
+						sprintf(judge, "obj[%d] is still there, check first times \n", iter->ID);
+						cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(100, 0, 200));
+						offset++;
+						iter->moved = false;
+						iter++;
 					}
 				}
-				cv::putText(drawingorig,judge,cv::Point(8,5+(100*offset)),3,1.25,cv::Scalar(0,0,255));
-				offset++;
-				sprintf(displayindex, "patch_%d ", iter->ID);
-				cv::namedWindow(displayindex, WINDOW_NORMAL);
-				cv::imshow(displayindex, iter->imgdata);
-				cv::waitKey(5);
-				iter++;
+				else if (iter->haschecked && timeinterval > (CHECK_INTERVAL * iter->checktimes))
+				{
+					cv::Mat currentpatchhere = roiregion(iter->m_postion);
+					bool movedout = Analysis.BemovedOut(iter->imgdata, currentpatchhere, 0);
+					iter->checktimes++;
+					if (movedout)
+					{
+						sprintf(judge, "obj[%d] has been moved out \n", iter->ID);
+						cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+						offset++;
+						sprintf(destroypatchname, "patch_%d", iter->ID);
+						cv::destroyAllWindows();
+						iter = SplitObjForSure.erase(iter);
+					}
+					else
+					{
+						sprintf(judge, "obj[%d] is still there, check[%d] times \n", iter->ID, iter->checktimes);
+						cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+						iter->moved = false;
+						iter++;
+					}
+				}
+				else
+				{
+					if (CHECK_INTERVAL > timeinterval)
+					{
+						sprintf(judge, "ID_%d_%d_fleft", iter->ID, CHECK_INTERVAL - timeinterval);
+					}
+					else
+					{
+						if (!iter->haschecked)
+						{
+							sprintf(judge, "ID_%d to check now", iter->ID);
+						}
+					}
+					cv::putText(drawingorig, judge, cv::Point(8, 5 + (100 * offset)), 3, 1.25, cv::Scalar(0, 0, 255));
+					offset++;
+					sprintf(displayindex, "patch_%d ", iter->ID);
+					cv::namedWindow(displayindex, WINDOW_NORMAL);
+					cv::imshow(displayindex, iter->imgdata);
+					cv::waitKey(5);
+					iter++;
+				}
 			}
+#endif
+			count4tracker++;
 		}
 
-		#endif
 
 
-		count4tracker++;
+		openvxframe++;
+
+		
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
 		std::cout << "\n per frame duration :" << duration;
 		std::cout << "\n counts : " << count;
-		cv::namedWindow("orig", WINDOW_NORMAL);
+		
 		cv::imshow("orig", drawingorig);
 		cv::waitKey(5);
+
+
 	}
 #if yolov5
 	outfile.close();
