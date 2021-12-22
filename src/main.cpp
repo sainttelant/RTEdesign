@@ -15,6 +15,8 @@ int main() {
 	dataforsplit.timestamp = 111200;
 	UcitFactory = new UcitRTE::UcitSplitF();
 	
+	float factor =(float )2560 / (float)960.0;
+	printf("results:%f \n", factor);
 	Task = UcitFactory->DispatchTask(&dataforsplit);
 
 	

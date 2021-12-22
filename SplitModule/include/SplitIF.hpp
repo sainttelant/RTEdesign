@@ -31,7 +31,8 @@ namespace SplitObjIF
         RadarPostion m_radarpos;
         long appearing_timestamp;
         long dispearing_timestamp;
-        cv::Rect m_postion;
+        cv::Rect m_postion; //after resizing pics, in patch positions
+        cv::Rect origlayout;
 		cv::Mat imgdata;
 		unsigned int firstshowframenum;
 		int ID;
@@ -44,6 +45,7 @@ namespace SplitObjIF
     {
        unsigned int framenum;
        long timestamp;
+       cv::Mat imageData;
        // 安全起见拷贝一次从inferout，等号操作深拷贝一次
        std::vector<cv::Rect> v_inferout;
         /* data */
@@ -61,7 +63,7 @@ namespace SplitObjIF
 			static SplitIF m_SplitIF;
 			return m_SplitIF;
 		};
-        std::vector<SplitObjIF::SplitObjSender> RunSplitDetect(bool run);
+        void RunSplitDetect(SplitObjReceiver &datain,std::vector<SplitObjIF::SplitObjSender>& dataout,bool run);
         void Setdata(SplitObjReceiver inferout);
         void Setinnerframecount(unsigned int framecount);
         unsigned int Getinnerframecount();

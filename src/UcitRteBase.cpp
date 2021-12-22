@@ -22,7 +22,10 @@ namespace UcitRTE
 		{
 			printf("UcitSplit modules has not received inferDatas! Maybe not work well!\n ");
 		}
-		std::vector<SplitObjIF::SplitObjSender> v_runret= SplitObjIF::SplitIF::Instance().RunSplitDetect(true);
+
+		SplitObjIF::SplitObjReceiver inputpins;
+		std::vector<SplitObjIF::SplitObjSender> outputpins;
+		SplitObjIF::SplitIF::Instance().RunSplitDetect(inputpins,outputpins,true);
 
 	};
 

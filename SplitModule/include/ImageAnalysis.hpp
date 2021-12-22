@@ -12,6 +12,7 @@ namespace xueweiImage
 	struct SplitObject
 	{
 		cv::Rect m_postion;
+		cv::Rect origlayout;
 		cv::Mat imgdata;
 		unsigned int firstshowframenum;
 		int ID;
