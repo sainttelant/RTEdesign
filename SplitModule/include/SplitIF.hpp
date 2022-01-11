@@ -52,8 +52,30 @@ namespace SplitObjIF
     };
 
 
-    void work(std::vector<SplitObjIF::SplitObjSender> &senderpin);
+    void work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int method =0);
 
+    //封装一下background abstract~~~
+
+    void InitGaussian(uchar* r_ptr, cv::Mat& ROIarea, int& nL, int& nC);
+    void backgroundsubstract(double& sum, double& sum1, bool& close, int& background, \
+        double& rVal, double& gVal, double& bVal, \
+        double& temp_cov, \
+        double& weight, \
+        double& var, \
+        uchar* r_ptr,
+        uchar* b_ptr, \
+        int nL, \
+        int nC, \
+        double mult, \
+        double muR, \
+        double muG, \
+        double muB, \
+        double dR, \
+        double dG, \
+        double dB, \
+        double mal_dist, \
+        cv::Mat& origin,
+        cv::Mat& binimg);
 
     class SplitIF
     {

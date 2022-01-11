@@ -1,7 +1,7 @@
 #include "UcitRteBase.hpp"
 
 
-int main() {
+int main(){
 
 	UcitRTE::UcitRteBase* UcitFactory = nullptr;
 	UcitRTE::AppBase* Task = nullptr;
