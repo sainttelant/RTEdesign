@@ -768,7 +768,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 	SplitObjIF::SplitObjSender SenderResults;
 	memset(&SenderResults,0,sizeof(SplitObjIF::SplitObjSender));
 #else
-	std::ifstream infile("../SplitModule/results/yolov5_xuewei_960_720.txt");
+	std::ifstream infile("../SplitModule/results/shiyan.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
 	// �޸Ķ�ȡ��ͼ���ʵ���������
 
@@ -846,7 +846,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 
 
 #else
-	cv::VideoCapture capture("../SplitModule/data/out_xuewei.mp4");
+	cv::VideoCapture capture("../SplitModule/data/out.mp4");
 #endif // RTSP
 
 #if RTSP
@@ -1638,9 +1638,8 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 		}
 
 		#endif
-	
-		}
 		count4tracker++;
+		}
 		openvxframe++;
 		duration = static_cast<double>(cv::getTickCount()) - duration3;
 		duration /= cv::getTickFrequency();
