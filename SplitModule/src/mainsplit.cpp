@@ -474,6 +474,10 @@ SplitObjIF::SplitIF::~SplitIF()
 
 };
 
+
+void CVbackgroundsubstract(cv::Mat& colorImg, cv::Mat& bgmask, Ptr<BackgroundSubtractorMOG2> p_backSub);
+void postprogress(cv::Mat& img, cv::Mat& mask);
+
 void SplitObjIF::SplitIF::Setdata(SplitObjReceiver inferout)
 {
 	m_Data.timestamp = inferout.timestamp;
@@ -563,6 +567,34 @@ void SplitObjIF::InitGaussian(uchar* r_ptr, cv::Mat &ROIarea, int &nL, int &nC)
 		nC = ROIarea.cols * ROIarea.channels();
 	}
 
+}
+
+void postprogress( cv::Mat& img, Mat& mask)
+{
+
+	vector<vector<Point> > contours;
+	vector<Vec4i> hierarchy;
+
+	cv::bitwise_not(mask, mask);
+	imshow("maskbefore", mask);
+	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
+	cv::morphologyEx(mask, mask, CV_MOP_CLOSE, kernel);
+	cv::bitwise_not(mask, mask);
+	cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(13, 13));
+	cv::dilate(mask, mask, dilatekernel, Point(-1, -1), 1, 0);
+
+	findContours(mask, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
+	imshow("mask", mask);
+	cv::waitKey(5);
+}
+
+
+void CVbackgroundsubstract(cv::Mat& colorImg, cv::Mat& bgmask, Ptr<BackgroundSubtractorMOG2> p_backSub)
+{
+	p_backSub->apply(colorImg, bgmask,-1);
+	postprogress(colorImg, bgmask);
+	//imshow("after xingtai", bgmask);
+	cv::waitKey(5);
 }
 
 void SplitObjIF::backgroundsubstract(double &sum, double &sum1,bool &close, int &background, \
@@ -785,6 +817,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 
 	// Declare matrices to store original and resultant binary image
 	cv::Mat orig_img, drawingorig, bin_img, realoriginimg;
+	cv::Mat backgmask;
 	realoriginimg = cv::Mat(1440, 2560, CV_8UC3);
 	// for openvx use,must deeply copy
 	
@@ -936,7 +969,11 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 	//Step 2: Modelling each pixel with Gaussian
 	duration1 = static_cast<double>(cv::getTickCount());
 	bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
-	
+	backgmask = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC3, cv::Scalar(0, 0, 0));
+
+
+
+
 	unsigned int count4tracker = 0;
 	unsigned int openvxframe = 0;
 
@@ -980,7 +1017,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 	float iou_thres = 0.5f;
 	
 #endif
-
+	Ptr<BackgroundSubtractorMOG2> bgsubtractor = createBackgroundSubtractorMOG2(200, 45, false);
 	while (1)
 	{
 		duration3 = static_cast<double>(cv::getTickCount());
@@ -1034,10 +1071,12 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 		N_ptr = N_start;
 		duration = static_cast<double>(cv::getTickCount());
 
-
-		backgroundsubstract(sum, sum1, close, background, rVal, \
+	
+		/*backgroundsubstract(sum, sum1, close, background, rVal, \
 			gVal, bVal, temp_cov, weight, var, r_ptr, b_ptr, \
-			nL, nC, mult, muR, muG, muB, dR, dG, dB, mal_dist,roiregion,bin_img);
+			nL, nC, mult, muR, muG, muB, dR, dG, dB, mal_dist,roiregion,bin_img);*/
+		//bool updatecv = true;
+	CVbackgroundsubstract(roiregion, bin_img, bgsubtractor);
 
 
 #if DISPLAY
@@ -1101,12 +1140,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 		vxReleaseImage(&vx_Mat1);
 		
 #else
-		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
+		/*cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
 		cv::morphologyEx(bin_img, bin_img, CV_MOP_CLOSE, kernel);
 		cv::bitwise_not(bin_img, bin_img);
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(11, 11));
-		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
+		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);*/
 #endif 
+
+
 
 #if DISPLAY
 		cv::namedWindow("after xingtai", WINDOW_NORMAL);
