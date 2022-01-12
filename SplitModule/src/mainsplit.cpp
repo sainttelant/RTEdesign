@@ -1089,14 +1089,9 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 		{
 		//step one, filter tiny points
 		//RemoveSmallRegion(bin_img, bin_img, 20, 0, 0);	
-		
-		// ��Ч��֤��ֵ�˲��ͱղ����Լ۱���ߣ�ҲЧ���Ϻá�?
-		// ��ֵ�˲�
 		//cv::medianBlur(bin_img, bin_img, 3);
 
 		//  using openvx to substitute for opencv morphology operation(first dilate and then erode!) 
-
-		// �������?
 		std::vector<std::vector<cv::Point>> contours;
 		std::vector<cv::Vec4i> hierarcy;
 
