@@ -8,8 +8,8 @@
 
 #define yolov5 0
 #define debug 0
-
-#define DISPLAY 1
+#define UsingTraditionSubstract 0
+#define DISPLAY 0
 
 // ��960X720 �ȱ���С3��
 #define RESIZE_WIDTH 960
@@ -515,12 +515,6 @@ void SplitObjIF::SplitIF::RunSplitDetect(SplitObjReceiver &datain,std::vector<Sp
 		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
 		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
 		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
-		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
-		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
-		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
-		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
-		printf(">>>>>>>>>>>>>>now, Turn splitobj detection ON!<<<<<<<<<<<<<<<\n");
-		
 		work(dataout);
 	}
 	else
@@ -574,27 +568,21 @@ void postprogress( cv::Mat& img, Mat& mask)
 
 	vector<vector<Point> > contours;
 	vector<Vec4i> hierarchy;
-
 	cv::bitwise_not(mask, mask);
-	imshow("maskbefore", mask);
 	cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
 	cv::morphologyEx(mask, mask, CV_MOP_CLOSE, kernel);
 	cv::bitwise_not(mask, mask);
-	cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(13, 13));
+	cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(5, 5));
 	cv::dilate(mask, mask, dilatekernel, Point(-1, -1), 1, 0);
-
 	findContours(mask, contours, hierarchy, CV_RETR_EXTERNAL, CV_CHAIN_APPROX_SIMPLE);
-	imshow("mask", mask);
-	cv::waitKey(5);
 }
 
 
 void CVbackgroundsubstract(cv::Mat& colorImg, cv::Mat& bgmask, Ptr<BackgroundSubtractorMOG2> p_backSub)
 {
 	p_backSub->apply(colorImg, bgmask,-1);
+	
 	postprogress(colorImg, bgmask);
-	//imshow("after xingtai", bgmask);
-	cv::waitKey(5);
 }
 
 void SplitObjIF::backgroundsubstract(double &sum, double &sum1,bool &close, int &background, \
@@ -801,6 +789,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 	memset(&SenderResults,0,sizeof(SplitObjIF::SplitObjSender));
 #else
 	std::ifstream infile("../SplitModule/results/shiyan.txt");
+	//std::ifstream infile("../SplitModule/results/yolov5_xuewei_960_720.txt");
 	std::vector< std::vector<BoundingBox> > yolov5_detections;
 	// �޸Ķ�ȡ��ͼ���ʵ���������
 
@@ -879,6 +868,7 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 
 
 #else
+	//cv::VideoCapture capture("../SplitModule/data/out_xuewei.mp4");
 	cv::VideoCapture capture("../SplitModule/data/out.mp4");
 #endif // RTSP
 
@@ -918,13 +908,8 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 	regions.push_back(p2);
 	regions.push_back(p3);
 	regions.push_back(p4);
-
-
-
 	printf("you have select roi:x,y,width,height[%f,%f,%f,%f]\n", roi.x, roi.y, roi.width, roi.height);
 	cv::Mat roiregion = orig_img(roi);
-
-
 	cv::cvtColor(roiregion, roiregion, cv::COLOR_BGR2YCrCb);
 	
 	//cv::GaussianBlur(roiregion, roiregion, cv::Size(3,3), 3.0);
@@ -971,9 +956,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 	bin_img = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC1, cv::Scalar(0));
 	backgmask = cv::Mat(roiregion.rows, roiregion.cols, CV_8UC3, cv::Scalar(0, 0, 0));
 
-
-
-
 	unsigned int count4tracker = 0;
 	unsigned int openvxframe = 0;
 
@@ -1017,7 +999,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 	float iou_thres = 0.5f;
 	
 #endif
-	Ptr<BackgroundSubtractorMOG2> bgsubtractor = createBackgroundSubtractorMOG2(200, 45, false);
+
+#if UsingTraditionSubstract
+	
+#else
+	//Ptr<BackgroundSubtractorMOG2> bgsubtractor = createBackgroundSubtractorMOG2(200, 45, false);
+	Ptr<BackgroundSubtractorMOG2> bgsubtractor = createBackgroundSubtractorMOG2(400, 20, false);
+#endif
+
 	while (1)
 	{
 		duration3 = static_cast<double>(cv::getTickCount());
@@ -1071,12 +1060,19 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 		N_ptr = N_start;
 		duration = static_cast<double>(cv::getTickCount());
 
-	
-		/*backgroundsubstract(sum, sum1, close, background, rVal, \
+
+#if UsingTraditionSubstract
+		// using traditional functions to do back substract
+		backgroundsubstract(sum, sum1, close, background, rVal, \
 			gVal, bVal, temp_cov, weight, var, r_ptr, b_ptr, \
-			nL, nC, mult, muR, muG, muB, dR, dG, dB, mal_dist,roiregion,bin_img);*/
-		//bool updatecv = true;
-	CVbackgroundsubstract(roiregion, bin_img, bgsubtractor);
+			nL, nC, mult, muR, muG, muB, dR, dG, dB, mal_dist,roiregion,bin_img);
+#else
+
+		//using opencv to do back ground sub
+		CVbackgroundsubstract(roiregion, bin_img, bgsubtractor);
+#endif
+		
+	
 
 
 #if DISPLAY
@@ -1088,13 +1084,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 	if (openvxframe > 20)
 		{
 		//step one, filter tiny points
-		//RemoveSmallRegion(bin_img, bin_img, 20, 0, 0);	
-		//cv::medianBlur(bin_img, bin_img, 3);
-
 		//  using openvx to substitute for opencv morphology operation(first dilate and then erode!) 
+
 		std::vector<std::vector<cv::Point>> contours;
 		std::vector<cv::Vec4i> hierarcy;
 
+
+
+#if UsingTraditionSubstract
 #if UsingOpenvx
 		// try to map memory, not copy
      	
@@ -1118,8 +1115,6 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 		/* vx_status ret = vxuNot(context,vx_bin,vx_Mat);
 		printf("vxuNot:%d \n",ret);
 	 */
-
-
 		vxReleaseImage(&vx_bin); 
 		vxReleaseImage(&vx_Mat);
 		cv::bitwise_not(bin_img, bin_img);
@@ -1135,13 +1130,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 		vxReleaseImage(&vx_Mat1);
 		
 #else
-		/*cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
+
+		cv::Mat kernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(3, 3), cv::Point(-1, -1));
 		cv::morphologyEx(bin_img, bin_img, CV_MOP_CLOSE, kernel);
 		cv::bitwise_not(bin_img, bin_img);
 		cv::Mat dilatekernel = cv::getStructuringElement(cv::MORPH_RECT, cv::Size(11, 11));
-		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);*/
+		cv::dilate(bin_img, bin_img, dilatekernel, Point(-1, -1), 1, 0);
 #endif 
-
+#endif
 
 
 #if DISPLAY
@@ -1220,24 +1216,12 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 				yolov5Points.push_back(bottomright);
 				yolov5Points.push_back(bottomleft);
 
-					/*	rectangle(orig_img,
-							Point(iters_b->x,
-								iters_b->y),
-							Point(bottomright.x,
-								bottomright.y),
-							Scalar(0, 100, 255),
-							2,
-							8);*/
-
-
 				//判断infer出来的东西在不在感兴趣区域内部，在的话再处理，不在则忽略
 				bool insideornot = judgeInorNot(yolov5Points, regions);
 				if (insideornot)
 				{
 					iters_b->x = iters_b->x - roi.x;
 					iters_b->y = iters_b->y - roi.y;
-					
-
 					cv::putText(drawingorig, "NetWork", cv::Point((int)iters_b->x, (int)iters_b->y- 10), \
 					0,0.5,cv::Scalar(0,255,0),1,8);
 					rectangle(drawingorig,
@@ -1418,6 +1402,14 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 					tmpSplitObj.m_postion.y = static_cast<int>(b.y);
 					tmpSplitObj.m_postion.width = static_cast<int>(b.width);
 					tmpSplitObj.m_postion.height = static_cast<int>(b.height);
+
+					if (tmpSplitObj.m_postion.x < 0 || \
+						tmpSplitObj.m_postion.y <0 || \
+						tmpSplitObj.m_postion.width<0 || \
+						tmpSplitObj.m_postion.height<0)
+					{
+						break;
+					}
 					tmpSplitObj.origlayout.x = (tmpSplitObj.m_postion.x + (int)roi.x)* (float)2560/(float)RESIZE_WIDTH;
 					tmpSplitObj.origlayout.y = (tmpSplitObj.m_postion.y + (int)roi.y) * (float)1440 / (float)RESIZE_HEIGHT;
 					tmpSplitObj.origlayout.width = tmpSplitObj.m_postion.width* (float)2560 / (float)RESIZE_WIDTH;
@@ -1431,10 +1423,18 @@ void SplitObjIF::work(std::vector<SplitObjIF::SplitObjSender> &senderpin, int me
 					{
 						continue;
 					}
-#endif 					
-					tmpSplitObj.imgdata = roiregion(tmpSplitObj.m_postion);
-					tmpSplitObj.haschecked = false;
-					tmpSplitObj.checktimes = 1;
+#endif 				
+					if (tmpSplitObj.m_postion.area()> roiregion.cols* roiregion.rows)
+					{
+						break;
+					}
+					else
+					{
+						tmpSplitObj.imgdata = roiregion(tmpSplitObj.m_postion);
+						tmpSplitObj.haschecked = false;
+						tmpSplitObj.checktimes = 1;
+					}
+		
 					// copy a result to senderpin
 #if RTSP
 					SenderResults.m_gps.latititude = 0;
